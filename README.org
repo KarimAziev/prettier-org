@@ -13,7 +13,7 @@ A minor mode that runs [[https://prettier.io/docs/en/install.html][prettier]] on
 #+end_src
 *** Manually
 
-Download repo and add it to your load path.
+Download repository and add it to your load path.
 
 #+begin_src elisp
 (require 'prettier-org)
@@ -24,24 +24,23 @@ Download repo and add it to your load path.
 #+end_src
 
 ** Commands
-+ ~prettier-org-mode~
-  A minor mode that runs prettier on save when point is inside org src block.
++ =prettier-org-mode=
 
-+ ~prettier-org-format-all-src-blocks~ (&optional file)
-Format all src block in FILE or current buffer.
+Turn on/off a minor mode that runs prettier on save when point is inside body of src block.
 
-+ ~prettier-org-format~ (&optional argument)
-Format src body at point with prettier if corresponding parser found.
-Parsers for src languages listed in `prettier-org-src-parsers-alist'.
-Common options listed in `prettier-org-args'.
-Alternatively if ARGUMENT is non-nil (interactively, with prefix argument),
-read prettier options in minibuffer.
++ =prettier-org-format-all-src-blocks= (&optional file)
+
+Format all src blocks in FILE or current buffer.
+
++ =prettier-org-format= (&optional argument)
+
+If language of src block found in ~prettier-org-src-parsers-alist~, format it.
+Common flags and options for prettier can be customized via ~prettier-org-args~. Interactively, with prefix argument, read prettier options in minibuffer.
 
 ** Customization
 
-+ ~prettier-org-args~
-List of args to send to prettier command excluding parser.
-Parser is specified in the variable `prettier-org-src-parsers-alist'.
++ =prettier-org-args=
+List of common flags and arguments to send to prettier, except option --parser, which should be specified in the variable ~prettier-org-src-parsers-alist~.
 
-+ ~prettier-org-src-parsers-alist~
-Alist of org src languages and corresponding prettier parsers.
++ =prettier-org-src-parsers-alist=
+Alist of org src languages and corresponding prettier parser.
