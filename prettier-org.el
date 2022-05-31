@@ -82,7 +82,13 @@
                                    (const :tag "Html" "html")
                                    (const :tag "Angular" "angular")
                                    (const :tag "Lwc" "lwc")
-                                   (string :tag "Other")))
+                                   (string :tag "Other parser")))
+  :group 'prettier-org)
+
+(defcustom prettier-org-langs-formatters nil
+  "Alist of org src languages and corresponding custom formatters."
+  :type '(alist :key-type (string :tag "Language")
+                :value-type (function :tag "Custom function"))
   :group 'prettier-org)
 
 (defcustom prettier-org-args '()
@@ -175,40 +181,47 @@ Return list of two elements: status (t or nil) and string with result."
                    (flatten-list options))))
        (buffer-string)))))
 
-(defun prettier-org-commment-noweb (code)
-  "Wrap noweb referneces in CODE in comments."
-  (let ((re (org-babel-noweb-wrap)))
+(defun prettier-org-commment-noweb (lang code)
+  "Wrap noweb referneces in CODE in comments according to LANG."
+  (when-let ((re (org-babel-noweb-wrap))
+             (mode (org-src-get-lang-mode lang)))
     (with-temp-buffer
       (insert code)
-      (while (re-search-backward re nil t 1)
-        (let ((beg (match-beginning 0))
-              (end (match-end 0)))
-          (replace-region-contents beg end
-                                   (lambda () (concat
-                                          "/*"
-                                          (buffer-substring-no-properties
-                                           beg end)
-                                          "*/")))))
+      (delay-mode-hooks
+        (funcall mode)
+        (while (re-search-backward re nil t 1)
+          (let ((beg (match-beginning 0))
+                (end (match-end 0)))
+            (save-excursion (comment-region-default beg end)))))
       (buffer-string))))
 
-(defun prettier-org-uncommment-noweb (code)
-  "Uncommeent noweb referneces in CODE."
-  (let ((re (org-babel-noweb-wrap)))
+(defun prettier-org-uncommment-noweb (lang code)
+  "Uncommeent noweb referneces in CODE according to LANG."
+  (when-let ((re (org-babel-noweb-wrap))
+             (mode (org-src-get-lang-mode lang)))
     (with-temp-buffer
       (insert code)
-      (while (re-search-backward re nil t 1)
-        (let ((ref (match-string-no-properties 0))
-              (beg (match-beginning 0))
-              (end (match-end 0)))
-          (let ((left (buffer-substring-no-properties (- beg 2) beg))
-                (right (buffer-substring-no-properties end (+ end 2))))
-            (when (and (string= left "/*")
-                       (string= right "*/"))
-              (replace-region-contents (- beg 2) (+ end 2) (lambda () ref))))))
+      (delay-mode-hooks
+        (funcall mode)
+        (let ((comment-start-length (length comment-start))
+              (comment-end-length (length comment-end)))
+          (while (re-search-backward re nil t 1)
+            (let ((ref (match-string-no-properties 0))
+                  (beg (match-beginning 0))
+                  (end (match-end 0)))
+              (let ((left (buffer-substring-no-properties
+                           (- beg comment-start-length) beg))
+                    (right (buffer-substring-no-properties
+                            end (+ end comment-end-length))))
+                (when (and (string= left comment-start)
+                           (string= right comment-end))
+                  (replace-region-contents
+                   (- beg comment-start-length)
+                   (+ end comment-end-length) (lambda () ref))))))))
       (buffer-string))))
 
-(defun prettier-org-format-region (beg end &rest options)
-  "Format region between BEG and END with OPTIONS."
+(defun prettier-org-format-region (lang beg end &rest options)
+  "Format region between BEG and END with LANG and OPTIONS."
   (setq options (flatten-list options))
   (let ((code (buffer-substring-no-properties beg end))
         (parser (or (car (seq-drop (member "--parser" options) 1)))))
@@ -216,6 +229,7 @@ Return list of two elements: status (t or nil) and string with result."
                              (null (member parser '("json" "json5"))))
                     "let temp_var = ")))
       (setq code (prettier-org-commment-noweb
+                  lang
                   (if prefix
                       (concat prefix code)
                     code)))
@@ -226,12 +240,31 @@ Return list of two elements: status (t or nil) and string with result."
         (if (car result)
             (replace-region-contents beg end (lambda ()
                                                (prettier-org-uncommment-noweb
+                                                lang
                                                 (if prefix
                                                     (substring
                                                      (cadr result)
                                                      (length prefix))
                                                   (cadr result)))))
           (message (cadr result)))))))
+
+(defun prettier-org-custom-formatter (lang beg end)
+  "Format region between BEG and END with custom formatter for LANG."
+  (when-let* ((custom-formatter (cdr (assoc lang
+                                            prettier-org-langs-formatters)))
+              (code (buffer-substring-no-properties
+                     beg
+                     end))
+              (formatted (funcall custom-formatter
+                                  (prettier-org-commment-noweb
+                                   lang
+                                   code))))
+    (setq formatted (prettier-org-uncommment-noweb
+                     lang
+                     formatted))
+    (unless (string= code formatted)
+      (replace-region-contents beg end
+                               (lambda () formatted)))))
 
 (defun prettier-org-format (&optional argument)
   "Format src body at point with prettier if corresponding parser found.
@@ -240,38 +273,62 @@ Common options listed in `prettier-org-args'.
 Alternatively if ARGUMENT is non-nil (interactively, with prefix argument),
 read prettier options in minibuffer."
   (interactive "P")
-  (when-let ((params (prettier-org-get-prettier-params)))
-    (let* ((parser (cdr (assoc (car params) prettier-org-src-parsers-alist)))
-           (options
-            (if argument
-                (split-string (read-string
-                               "Options:\s"
-                               (string-join
-                                (delete nil
-                                        (append
-                                         prettier-org-args
-                                         (list
-                                          "--parser"
-                                          (or parser
-                                              (completing-read
-                                               "--parser\s"
-                                               (prettier-org-list-parsers))))))
-                                "\s"))
-                              nil t)
-              (when parser
-                (append (list "--parser" parser)
-                        prettier-org-args)))))
-      (when options
-        (prettier-org-format-region (nth 1 params) (nth 2 params) options)))))
+  (when-let* ((params (prettier-org-get-prettier-params))
+              (lang (car params)))
+    (if-let* ((custom-formatter
+               (cdr (assoc lang prettier-org-langs-formatters)))
+              (code (buffer-substring-no-properties
+                     (nth 1 params)
+                     (nth 2 params)))
+              (formatted (funcall custom-formatter
+                                  (prettier-org-commment-noweb
+                                   lang
+                                   code))))
+        (progn
+          (setq formatted (prettier-org-uncommment-noweb
+                           lang
+                           formatted))
+          (unless (string= code formatted)
+            (replace-region-contents (nth 1 params) (nth 2 params)
+                                     (lambda ()
+                                       (prettier-org-uncommment-noweb
+                                        lang
+                                        formatted)))))
+      (let* ((parser (cdr (assoc lang prettier-org-src-parsers-alist)))
+             (options
+              (if argument
+                  (split-string
+                   (read-string
+                    "Options:\s"
+                    (string-join
+                     (delete nil
+                             (append
+                              prettier-org-args
+                              (list
+                               "--parser"
+                               (or parser
+                                   (completing-read
+                                    "--parser\s"
+                                    (prettier-org-list-parsers))))))
+                     "\s"))
+                   nil t)
+                (when parser
+                  (append (list "--parser" parser)
+                          prettier-org-args)))))
+        (when options
+          (prettier-org-format-region lang (nth 1 params) (nth 2 params)
+                                      options))))))
 
 (defun prettier-org-format-all-src-blocks (&optional file)
   "Format all src blocks in the FILE or current buffer."
   (interactive)
   (org-babel-map-src-blocks file
-    (when-let ((parser (cdr (assoc lang prettier-org-src-parsers-alist))))
-      (unless (or (null body) (string-empty-p (string-trim body)))
-        (prettier-org-format-region beg-body end-body "--parser" parser
-                                    prettier-org-args)))))
+    (if (cdr (assoc lang prettier-org-langs-formatters))
+        (prettier-org-custom-formatter lang beg-body end-body)
+      (when-let ((parser (cdr (assoc lang prettier-org-src-parsers-alist))))
+        (unless (or (null body) (string-empty-p (string-trim body)))
+          (prettier-org-format-region lang beg-body end-body "--parser" parser
+                                      prettier-org-args))))))
 
 ;;;###autoload
 (define-minor-mode prettier-org-mode
