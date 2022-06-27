@@ -1,6 +1,8 @@
 * prettier-org
 A minor mode that runs [[https://prettier.io/docs/en/install.html][prettier]] on save in src org-mode blocks.
 
+[[./prettier-org-demo.gif]]
+
 ** Installation
 
 *** with use-package and straight:
@@ -28,16 +30,25 @@ Download repository and add it to your load path.
 
 Turn on/off a minor mode that runs prettier on save when point is inside body of src block.
 
-+ =prettier-org-format-all-src-blocks= (&optional file)
++ =prettier-org-format-all-src-blocks=
+(&optional file)
 
 Format all src blocks in FILE or current buffer.
 
-+ =prettier-org-format= (&optional argument)
++ =prettier-org-format=
+(&optional argument)
 
 If language of src block found in ~prettier-org-src-parsers-alist~, format it.
 Common flags and options for prettier can be customized via ~prettier-org-args~. Interactively, with prefix argument, read prettier options in minibuffer.
 
 ** Customization
+
++ =prettier-org-langs-formatters=
+You can specify a custom format function.
+
+This function will be called with one argument - a string of code and should return formatted string.
+
+All no-web references will be commented before formatting and then restored.
 
 + =prettier-org-args=
 List of common flags and arguments to send to prettier, except option --parser, which should be specified in the variable ~prettier-org-src-parsers-alist~.

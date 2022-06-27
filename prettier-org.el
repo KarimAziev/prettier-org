@@ -182,43 +182,45 @@ Return list of two elements: status (t or nil) and string with result."
        (buffer-string)))))
 
 (defun prettier-org-commment-noweb (lang code)
-  "Wrap noweb referneces in CODE in comments according to LANG."
-  (when-let ((re (org-babel-noweb-wrap))
-             (mode (org-src-get-lang-mode lang)))
+  "Wrap noweb references in CODE in comments according to LANG.
+Return a cons of CODE with commented noweb references and alist
+of replacements and original values"
+  (when-let ((mode (org-src-get-lang-mode lang)))
     (with-temp-buffer
       (insert code)
+      (goto-char (point-min))
       (delay-mode-hooks
         (funcall mode)
-        (while (re-search-backward re nil t 1)
-          (let ((beg (match-beginning 0))
-                (end (match-end 0)))
-            (save-excursion (comment-region-default beg end)))))
-      (buffer-string))))
+        (if-let ((repls (prettier-org-commment-noweb-0)))
+            (cons (buffer-string) repls)
+          (cons code '()))))))
 
-(defun prettier-org-uncommment-noweb (lang code)
-  "Uncommeent noweb referneces in CODE according to LANG."
-  (when-let ((re (org-babel-noweb-wrap))
-             (mode (org-src-get-lang-mode lang)))
-    (with-temp-buffer
-      (insert code)
-      (delay-mode-hooks
-        (funcall mode)
-        (let ((comment-start-length (length comment-start))
-              (comment-end-length (length comment-end)))
-          (while (re-search-backward re nil t 1)
-            (let ((ref (match-string-no-properties 0))
-                  (beg (match-beginning 0))
-                  (end (match-end 0)))
-              (let ((left (buffer-substring-no-properties
-                           (- beg comment-start-length) beg))
-                    (right (buffer-substring-no-properties
-                            end (+ end comment-end-length))))
-                (when (and (string= left comment-start)
-                           (string= right comment-end))
-                  (replace-region-contents
-                   (- beg comment-start-length)
-                   (+ end comment-end-length) (lambda () ref))))))))
-      (buffer-string))))
+(defun prettier-org-commment-noweb-0 ()
+  "Wrap noweb referneces in CODE in comments according to LANG.
+Return alist of replacements and original values."
+  (let ((replacements)
+        (re (org-babel-noweb-wrap)))
+    (while (re-search-forward re nil t 1)
+      (let ((beg (match-beginning 0))
+            (end (match-end 0))
+            (ref (match-string-no-properties 0))
+            (rep))
+        (comment-region-default beg end)
+        (setq rep (string-trim (buffer-substring-no-properties beg (point))))
+        (push (cons rep ref) replacements)))
+    replacements))
+
+(defun prettier-org-replace-matches (replacements code)
+  "Search and replace occurences in CODE according to REPLACEMENTS.
+REPLACEMENTS should be alist of strings to search for and associated value to
+replace with."
+  (with-temp-buffer
+    (insert code)
+    (let ((curr))
+      (while (setq curr (pop replacements))
+        (when (re-search-backward (regexp-quote (car curr)) nil t 1)
+          (save-excursion (replace-match (cdr curr))))))
+    (buffer-string)))
 
 (defun prettier-org-format-region (lang beg end &rest options)
   "Format region between BEG and END with LANG and OPTIONS."
@@ -227,20 +229,21 @@ Return list of two elements: status (t or nil) and string with result."
         (parser (or (car (seq-drop (member "--parser" options) 1)))))
     (let ((prefix (when (and (string-prefix-p "{" (string-trim code))
                              (null (member parser '("json" "json5"))))
-                    "let temp_var = ")))
-      (setq code (prettier-org-commment-noweb
+                    "let temp_var = "))
+          (cell))
+      (setq cell (prettier-org-commment-noweb
                   lang
                   (if prefix
                       (concat prefix code)
                     code)))
       (let ((result
              (prettier-org-format-string
-              code
+              (car cell)
               options)))
         (if (car result)
             (replace-region-contents beg end (lambda ()
-                                               (prettier-org-uncommment-noweb
-                                                lang
+                                               (prettier-org-replace-matches
+                                                (cdr cell)
                                                 (if prefix
                                                     (substring
                                                      (cadr result)
@@ -255,12 +258,12 @@ Return list of two elements: status (t or nil) and string with result."
               (code (buffer-substring-no-properties
                      beg
                      end))
-              (formatted (funcall custom-formatter
-                                  (prettier-org-commment-noweb
-                                   lang
-                                   code))))
-    (setq formatted (prettier-org-uncommment-noweb
+              (cell (prettier-org-commment-noweb
                      lang
+                     code))
+              (formatted (funcall custom-formatter (car cell))))
+    (setq formatted (prettier-org-replace-matches
+                     (cdr cell)
                      formatted))
     (unless (string= code formatted)
       (replace-region-contents beg end
@@ -280,20 +283,19 @@ read prettier options in minibuffer."
               (code (buffer-substring-no-properties
                      (nth 1 params)
                      (nth 2 params)))
+              (cell (prettier-org-commment-noweb
+                     lang
+                     code))
               (formatted (funcall custom-formatter
-                                  (prettier-org-commment-noweb
-                                   lang
-                                   code))))
+                                  (car cell))))
         (progn
-          (setq formatted (prettier-org-uncommment-noweb
-                           lang
+          (setq formatted (prettier-org-replace-matches
+                           (cdr cell)
                            formatted))
           (unless (string= code formatted)
             (replace-region-contents (nth 1 params) (nth 2 params)
                                      (lambda ()
-                                       (prettier-org-uncommment-noweb
-                                        lang
-                                        formatted)))))
+                                       formatted))))
       (let* ((parser (cdr (assoc lang prettier-org-src-parsers-alist)))
              (options
               (if argument
