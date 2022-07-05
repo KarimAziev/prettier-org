@@ -170,7 +170,7 @@ Return list of two elements: status (t or nil) and string with result."
       (insert string)
       (list
        (eq 0
-           (apply 'call-process-region
+           (apply #'call-process-region
                   (append
                    (list (point-min)
                          (point-max)
