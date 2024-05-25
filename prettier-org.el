@@ -57,32 +57,38 @@
                                             ("typescript" . "typescript")
                                             ("javascript" . "typescript")
                                             ("ts" . "typescript"))
-  "Alist of org src languages and corresponding prettier parsers."
-  :type '(alist :key-type (string :tag "Language")
-                :value-type (radio :tag "Prettier parser"
-                                   (const :tag "Flow" "flow")
-                                   (const :tag "Babel" "babel")
-                                   (const :tag "Babel-Flow" "babel-flow")
-                                   (const :tag "Babel-Ts" "babel-ts")
-                                   (const :tag "Typescript" "typescript")
-                                   (const :tag "Espree" "espree")
-                                   (const :tag "Meriyah" "meriyah")
-                                   (const :tag "Css" "css")
-                                   (const :tag "Less" "less")
-                                   (const :tag "Scss" "scss")
-                                   (const :tag "Json" "json")
-                                   (const :tag "Json5" "json5")
-                                   (const :tag "Json-Stringify" "json-stringify")
-                                   (const :tag "Graphql" "graphql")
-                                   (const :tag "Markdown" "markdown")
-                                   (const :tag "Mdx" "mdx")
-                                   (const :tag "Vue" "vue")
-                                   (const :tag "Yaml" "yaml")
-                                   (const :tag "Glimmer" "glimmer")
-                                   (const :tag "Html" "html")
-                                   (const :tag "Angular" "angular")
-                                   (const :tag "Lwc" "lwc")
-                                   (string :tag "Other parser")))
+  "Alist mapping source block languages to their corresponding Prettier parsers.
+
+An alist mapping Org mode source block languages to Prettier
+parsers. Each key is a string representing the language used in
+an Org mode source block, and the corresponding value is a
+string representing the Prettier parser to use for that language."
+  :type '(alist
+          :key-type (string :tag "Language")
+          :value-type (radio :tag "Prettier parser"
+                       (const :tag "Flow" "flow")
+                       (const :tag "Babel" "babel")
+                       (const :tag "Babel-Flow" "babel-flow")
+                       (const :tag "Babel-Ts" "babel-ts")
+                       (const :tag "Typescript" "typescript")
+                       (const :tag "Espree" "espree")
+                       (const :tag "Meriyah" "meriyah")
+                       (const :tag "Css" "css")
+                       (const :tag "Less" "less")
+                       (const :tag "Scss" "scss")
+                       (const :tag "Json" "json")
+                       (const :tag "Json5" "json5")
+                       (const :tag "Json-Stringify" "json-stringify")
+                       (const :tag "Graphql" "graphql")
+                       (const :tag "Markdown" "markdown")
+                       (const :tag "Mdx" "mdx")
+                       (const :tag "Vue" "vue")
+                       (const :tag "Yaml" "yaml")
+                       (const :tag "Glimmer" "glimmer")
+                       (const :tag "Html" "html")
+                       (const :tag "Angular" "angular")
+                       (const :tag "Lwc" "lwc")
+                       (string :tag "Other parser")))
   :group 'prettier-org)
 
 (defcustom prettier-org-langs-formatters nil
@@ -422,24 +428,28 @@ read prettier options in minibuffer."
     (if (cdr (assoc lang prettier-org-langs-formatters))
         (prettier-org-custom-formatter lang beg-body end-body)
       (when-let ((parser (cdr (assoc lang prettier-org-src-parsers-alist))))
-        (unless (or (null body) (string-empty-p (string-trim body)))
+        (unless (or (null body)
+                    (string-empty-p (string-trim body)))
           (prettier-org-format-region lang beg-body end-body "--parser" parser
                                       prettier-org-args))))))
 
 (defun prettier-org-src-run-save-hooks ()
-  "Run wrapped before save hooks after `org-edit-src-save'."
+  "Run `prettier-org-format-non-readonly-regions' when saving an Org source block."
   (when (eq this-command 'org-edit-src-save)
     (prettier-org-format-non-readonly-regions)))
 
 ;;;###autoload
 (define-minor-mode prettier-org-edit-src-mode
-  "Run `before-save-hook' on `org-edit-src-save' with commented noweb references.
-Also skip read-only properties.
+  "Enable or disable automatic formatting of Org source blocks before saving.
 
-Supposed to use in `org-src-mode-hook'.
+Enable or disable automatic formatting of non-read-only regions in Org source
+code blocks before saving. When enabled, hooks are added to format the code,
+ensuring that noweb references are commented and read-only regions are
+preserved.
 
-Usage:
-\=(add-hook \='org-src-mode-hook #\='prettier-org-edit-src-mode)."
+Supposed to use in `org-src-mode-hook':
+
+\=(add-hook \\='org-src-mode-hook #\\='prettier-org-edit-src-mode)."
   :global nil
   (if prettier-org-edit-src-mode
       (add-hook 'pre-command-hook #'prettier-org-src-run-save-hooks nil t)
