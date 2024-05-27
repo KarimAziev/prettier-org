@@ -1,4 +1,4 @@
-;;; prettier-org.el --- Configure prettier -*- lexical-binding: t -*-
+;;; prettier-org.el --- Format source blocks in Org mode with prettier -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2022 Karim Aziiev <karim.aziiev@gmail.com>
 
@@ -22,9 +22,12 @@
 ;;
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 ;;; Commentary:
 
-;; This file configures operations with prettier
+;; This package provides functionality to format Org mode source blocks using
+;; Prettier. It supports various languages and allows customization of
+;; formatters and arguments.
 
 ;; Commands
 
@@ -47,6 +50,8 @@
 ;;      List of args to send to prettier command excluding parser.
 ;;      Parser is specified in the variable `prettier-org-src-parsers-alist'.
 
+;; `prettier-org-langs-formatters'
+;;  An alist mapping language names to custom formatting functions.
 
 ;;; Code:
 
@@ -92,7 +97,26 @@ string representing the Prettier parser to use for that language."
   :group 'prettier-org)
 
 (defcustom prettier-org-langs-formatters nil
-  "Alist of org src languages and corresponding custom formatters."
+  "Alist mapping programming languages to custom formatting functions.
+
+An alist mapping language names to custom formatting functions.
+
+Each key should be a string representing the language name, and
+each value should be a function that takes a single argument,
+the code to be formatted, and returns the formatted code as a
+string.
+
+Example usage:
+
+\\(setq prettier-org-langs-formatters
+      \\='((\"python\" . my-python-formatter)
+          (\"emacs-lisp\" . prettier-elisp-string)
+          (\"elisp\" . prettier-elisp-string)))
+
+In this example, `my-python-formatter', `prettier-elisp-string'
+are user-defined functions that take a string of code and return
+a formatted string. These functions will be used to format
+Python and JavaScript code blocks, respectively, in Org mode."
   :type '(alist
           :key-type (string :tag "Language")
           :value-type (function :tag "Custom function"))
