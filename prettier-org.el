@@ -61,7 +61,8 @@
 (defcustom prettier-org-src-parsers-alist '(("js" . "typescript")
                                             ("typescript" . "typescript")
                                             ("javascript" . "typescript")
-                                            ("ts" . "typescript"))
+                                            ("ts" . "typescript")
+                                            ("json" . "json"))
   "Alist mapping source block languages to their corresponding Prettier parsers.
 
 An alist mapping Org mode source block languages to Prettier
