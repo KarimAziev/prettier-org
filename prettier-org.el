@@ -136,7 +136,7 @@ Parser is specified in the variable `prettier-org-src-parsers-alist'."
       (widen)
       (let ((case-fold-search t))
         (when (re-search-forward "#\\+\\(begin\\|end\\)_src\\($\\|[\s\f\t\n\r\v]\\)" nil t 1)
-          (when-let ((word (match-string-no-properties 1))
+          (when-let* ((word (match-string-no-properties 1))
                      (end (match-beginning 0)))
             (setq word (downcase word))
             (when (string= word "end")
@@ -185,10 +185,10 @@ Parser is specified in the variable `prettier-org-src-parsers-alist'."
 (defun prettier-org-list-parsers (&optional prettier-exec)
   "Return list of prettier parsers from output of PRETTIER-EXEC help command.
 If PRETTIER-EXEC is nil, search for local or global prettier executable."
-  (when-let ((prettier (or prettier-exec (prettier-org-find-exec))))
+  (when-let* ((prettier (or prettier-exec (prettier-org-find-exec))))
     (with-temp-buffer
       (shell-command (concat prettier " --help") (current-buffer))
-      (when-let ((parsers
+      (when-let* ((parsers
                   (when (re-search-forward
                          "--parser[\s\t\n]+[<]\\([^>]+\\)>" nil t 1)
                     (match-string-no-properties 1))))
@@ -197,7 +197,7 @@ If PRETTIER-EXEC is nil, search for local or global prettier executable."
 (defun prettier-org-format-string (string &rest options)
   "Apply prettier on STRING with OPTIONS.
 Return list of two elements: status (t or nil) and string with result."
-  (when-let ((prettier-cmd (prettier-org-find-exec)))
+  (when-let* ((prettier-cmd (prettier-org-find-exec)))
     (with-temp-buffer
       (insert string)
       (list
@@ -217,13 +217,13 @@ Return list of two elements: status (t or nil) and string with result."
   "Wrap noweb references in CODE in comments according to LANG.
 Return a cons of CODE with commented noweb references and alist
 of replacements and original values"
-  (when-let ((mode (org-src-get-lang-mode lang)))
+  (when-let* ((mode (org-src-get-lang-mode lang)))
     (with-temp-buffer
       (insert code)
       (goto-char (point-min))
       (delay-mode-hooks
         (funcall mode)
-        (if-let ((repls (prettier-org-commment-noweb-0)))
+        (if-let* ((repls (prettier-org-commment-noweb-0)))
             (cons (buffer-string) repls)
           (cons code '()))))))
 
@@ -320,7 +320,7 @@ replace with."
 (defun prettier-org-next-read-only-property-change ()
   "Jump to the position of next read-only property change.
 Return the position of point if found, or nil."
-  (when-let ((beg (next-single-property-change (point) 'read-only)))
+  (when-let* ((beg (next-single-property-change (point) 'read-only)))
     (goto-char beg)
     beg))
 
@@ -452,7 +452,7 @@ read prettier options in minibuffer."
   (org-babel-map-src-blocks file
     (if (cdr (assoc lang prettier-org-langs-formatters))
         (prettier-org-custom-formatter lang beg-body end-body)
-      (when-let ((parser (cdr (assoc lang prettier-org-src-parsers-alist))))
+      (when-let* ((parser (cdr (assoc lang prettier-org-src-parsers-alist))))
         (unless (or (null body)
                     (string-empty-p (string-trim body)))
           (prettier-org-format-region lang beg-body end-body "--parser" parser
